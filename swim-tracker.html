@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Georgia Swim State Cuts Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0a1628; color: #e0e8f0; min-height: 100vh; }
+
+  header {
+    background: linear-gradient(135deg, #0d2444, #1a3a6b);
+    padding: 18px 24px; border-bottom: 2px solid #2a5298;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .logo { font-size: 28px; }
+  header h1 { font-size: 1.4rem; font-weight: 700; color: #fff; }
+  header p { font-size: 0.8rem; color: #7fa8d4; margin-top: 2px; }
+
+  .main { padding: 16px 24px 40px; }
+
+  .summary-bar {
+    background: #0f1f38; border: 1px solid #1e3a5f; border-radius: 12px;
+    padding: 14px 20px; margin-bottom: 20px;
+    display: flex; gap: 28px; flex-wrap: wrap; align-items: center;
+  }
+  .stat { text-align: center; }
+  .stat-num { font-size: 1.8rem; font-weight: 800; color: #fff; }
+  .stat-label { font-size: 0.7rem; color: #7fa8d4; text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat.green .stat-num { color: #22c55e; }
+  .stat.yellow .stat-num { color: #f59e0b; }
+
+  .events-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 18px;
+  }
+
+  .event-card {
+    background: #0f1f38; border: 1px solid #1e3a5f;
+    border-radius: 14px; overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .event-card.achieved { border-color: #22c55e; }
+  .event-card.close    { border-color: #f59e0b; }
+
+  .card-header {
+    padding: 14px 16px 10px;
+    background: #0d1a2e;
+    border-bottom: 1px solid #1a3050;
+  }
+  .event-name { font-weight: 700; font-size: 1rem; color: #7fc8f8; }
+  .cut-row { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+  .cut-time { font-size: 0.8rem; color: #8aabb8; }
+  .cut-time span { color: #fff; font-weight: 600; }
+  .diff-label { font-size: 0.78rem; font-weight: 700; }
+  .diff-label.achieved { color: #22c55e; }
+  .diff-label.close    { color: #f59e0b; }
+  .diff-label.over     { color: #ef4444; }
+
+  .progress-wrap { padding: 8px 16px; }
+  .status-bar { height: 6px; border-radius: 3px; background: #1e3a5f; overflow: hidden; }
+  .status-fill {
+    height: 100%; border-radius: 3px;
+    background: linear-gradient(90deg, #3b82f6, #60a5fa);
+    transition: width 0.5s ease;
+  }
+  .status-fill.achieved { background: linear-gradient(90deg, #16a34a, #22c55e); }
+  .status-fill.close    { background: linear-gradient(90deg, #d97706, #f59e0b); }
+
+  .card-tabs { display: flex; border-bottom: 1px solid #1a3050; }
+  .card-tab {
+    flex: 1; padding: 7px 0; background: none; border: none;
+    color: #5a8aa8; font-size: 0.78rem; cursor: pointer;
+    border-bottom: 2px solid transparent; transition: all 0.15s;
+  }
+  .card-tab.active { color: #7fc8f8; border-bottom-color: #3b82f6; }
+
+  .card-body { padding: 12px 16px; }
+
+  .times-list { display: flex; flex-direction: column; gap: 6px; max-height: 200px; overflow-y: auto; }
+  .time-row {
+    display: grid; grid-template-columns: 1fr 1fr auto auto;
+    gap: 6px; align-items: center; padding: 6px 8px;
+    background: #0a1628; border-radius: 6px; border: 1px solid #1a3050;
+    font-size: 0.8rem;
+  }
+  .time-row.best-row { border-color: #22c55e; background: #091a10; }
+  .time-val { font-family: monospace; font-weight: 700; color: #a0d0f0; }
+  .time-val.best-val { color: #22c55e; }
+  .time-meet { color: #8aabb8; font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .time-date { color: #5a7a8a; font-size: 0.72rem; }
+  .row-actions { display: flex; gap: 2px; }
+  .icon-btn {
+    background: none; border: none; cursor: pointer;
+    font-size: 0.85rem; padding: 2px 4px; border-radius: 4px;
+    transition: background 0.15s;
+  }
+  .icon-btn:hover { background: #1e3a5f; }
+  .best-badge {
+    font-size: 0.65rem; background: #14532d; color: #22c55e;
+    padding: 1px 5px; border-radius: 4px; font-weight: 700; margin-left: 4px;
+  }
+
+  .add-form { margin-top: 4px; }
+  .add-form-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px;
+  }
+  .form-input {
+    background: #0a1628; border: 1px solid #2a3a50; border-radius: 6px;
+    color: #fff; padding: 7px 10px; font-size: 0.82rem; width: 100%;
+  }
+  .form-input:focus { outline: none; border-color: #3b82f6; }
+  .form-input::placeholder { color: #3a5070; }
+  .form-input.time-font { font-family: monospace; }
+  .add-btn {
+    width: 100%; padding: 8px; background: #1a3a6b;
+    border: 1px dashed #2a5298; border-radius: 6px;
+    color: #7fa8d4; font-size: 0.82rem; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .add-btn:hover { background: #2a4a7b; color: #fff; border-style: solid; }
+
+  .chart-wrap { position: relative; height: 165px; }
+
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.75); z-index: 100;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: #0f1f38; border: 1px solid #2a5298; border-radius: 14px;
+    padding: 24px; width: 340px; max-width: 95vw;
+  }
+  .modal h3 { color: #7fc8f8; margin-bottom: 16px; font-size: 1rem; }
+  .modal-field { margin-bottom: 12px; }
+  .modal-field label { font-size: 0.75rem; color: #8aabb8; display: block; margin-bottom: 4px; }
+  .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+  .btn-save {
+    flex: 1; padding: 9px; background: #2a5298; border: none;
+    border-radius: 7px; color: #fff; font-size: 0.85rem; cursor: pointer;
+  }
+  .btn-save:hover { background: #3b63b0; }
+  .btn-cancel {
+    padding: 9px 16px; background: #1a2a3a; border: 1px solid #2a3a50;
+    border-radius: 7px; color: #8aabb8; font-size: 0.85rem; cursor: pointer;
+  }
+  .empty-state { text-align: center; color: #3a5070; font-size: 0.8rem; padding: 20px 0; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🏊</div>
+  <div>
+    <h1>Georgia Swim State Cuts Tracker</h1>
+    <p>GHSA State Meet Qualifying Standards · 15-16 Boys · Freestyle, Backstroke &amp; IM</p>
+  </div>
+</header>
+
+<div class="main">
+  <div class="summary-bar" id="summaryBar"></div>
+  <div class="events-grid" id="eventsGrid"></div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <h3>✏️ Edit Time Entry</h3>
+    <div class="modal-field">
+      <label>Time (e.g. 1:55.00 or 23.50)</label>
+      <input class="form-input time-font" id="editTime" placeholder="1:55.00" />
+    </div>
+    <div class="modal-field">
+      <label>Meet Name</label>
+      <input class="form-input" id="editMeet" placeholder="Region Championships" />
+    </div>
+    <div class="modal-field">
+      <label>Date</label>
+      <input class="form-input" type="date" id="editDate" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-save"   onclick="saveEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const CUTS = {
+  '50 Freestyle':        '23.50',
+  '100 Freestyle':       '52.00',
+  '200 Freestyle':       '1:55.00',
+  '500 Freestyle':       '5:20.00',
+  '200 Freestyle Relay': '1:40.00',
+  '400 Freestyle Relay': '3:44.00',
+  '100 Backstroke':      '1:00.00',
+  '200 IM':              '2:12.00',
+};
+
+let data = {};
+try { data = JSON.parse(localStorage.getItem('swimTracker_v3') || '{}'); } catch(e) {}
+
+const cardTabs = {};
+const chartInstances = {};
+let editTarget = null;
+
+function save() {
+  try { localStorage.setItem('swimTracker_v3', JSON.stringify(data)); } catch(e) {}
+}
+
+function toSecs(str) {
+  if (!str || !str.trim()) return null;
+  const s = str.trim();
+  const parts = s.split(':');
+  if (parts.length === 2) {
+    const v = parseFloat(parts[0]) * 60 + parseFloat(parts[1]);
+    return isNaN(v) ? null : v;
+  }
+  const v = parseFloat(parts[0]);
+  return isNaN(v) ? null : v;
+}
+
+function fromSecs(s) {
+  if (s === null || s === undefined || isNaN(s)) return '';
+  if (s >= 60) {
+    const m = Math.floor(s / 60);
+    const sec = (s % 60).toFixed(2).padStart(5, '0');
+    return `${m}:${sec}`;
+  }
+  return s.toFixed(2);
+}
+
+function getBest(event) {
+  const secs = (data[event] || []).map(e => toSecs(e.time)).filter(s => s !== null);
+  return secs.length ? Math.min(...secs) : null;
+}
+
+function getSorted(event) {
+  return (data[event] || [])
+    .map((e, i) => ({ ...e, origIdx: i }))
+    .sort((a, b) => (toSecs(a.time) || 9999) - (toSecs(b.time) || 9999));
+}
+
+// ─── Render ──────────────────────────────────────────────────────────────────
+
+function render() {
+  Object.values(chartInstances).forEach(c => { try { c.destroy(); } catch(e){} });
+  for (const k in chartInstances) delete chartInstances[k];
+
+  const grid = document.getElementById('eventsGrid');
+  grid.innerHTML = '';
+
+  let achieved = 0, close = 0;
+  const total = Object.keys(CUTS).length;
+
+  Object.entries(CUTS).forEach(([event, cut]) => {
+    const cutSecs = toSecs(cut);
+    const best    = getBest(event);
+    const isAch   = best !== null && best <= cutSecs;
+    const diff    = best !== null ? best - cutSecs : null;
+    const isCls   = !isAch && diff !== null && diff <= 5;
+    if (isAch) achieved++;
+    else if (isCls) close++;
+
+    const pct  = best !== null ? Math.min(100, Math.max(4, (cutSecs / best) * 100)) : 0;
+    const eKey = event.replace(/\s/g, '_');
+    if (!cardTabs[event]) cardTabs[event] = 'times';
+
+    let diffHtml = '';
+    if (best !== null) {
+      if (isAch) diffHtml = `<span class="diff-label achieved">✅ Cut! ${fromSecs(Math.abs(diff))} under</span>`;
+      else if (isCls) diffHtml = `<span class="diff-label close">🔥 ${fromSecs(diff)} to go</span>`;
+      else diffHtml = `<span class="diff-label over">⏱ ${fromSecs(diff)} to go</span>`;
+    }
+
+    const card = document.createElement('div');
+    card.className = 'event-card' + (isAch ? ' achieved' : isCls ? ' close' : '');
+    card.id = 'card_' + eKey;
+
+    card.innerHTML = `
+      <div class="card-header">
+        <div class="event-name">${event}</div>
+        <div class="cut-row">
+          <div class="cut-time">State Cut: <span>${cut}</span></div>
+          ${diffHtml}
+        </div>
+      </div>
+      <div class="progress-wrap">
+        <div class="status-bar">
+          <div class="status-fill ${isAch?'achieved':isCls?'close':''}" style="width:${pct}%"></div>
+        </div>
+      </div>
+      <div class="card-tabs">
+        <button class="card-tab ${cardTabs[event]==='times'?'active':''}" onclick="setTab('${event}','times')">📋 Times</button>
+        <button class="card-tab ${cardTabs[event]==='chart'?'active':''}" onclick="setTab('${event}','chart')">📈 Progress</button>
+        <button class="card-tab ${cardTabs[event]==='add'?'active':''}"   onclick="setTab('${event}','add')">＋ Add</button>
+      </div>
+      <div class="card-body" id="body_${eKey}">${bodyHtml(event, eKey, cutSecs)}</div>
+    `;
+    grid.appendChild(card);
+
+    if (cardTabs[event] === 'chart') {
+      setTimeout(() => drawChart(event, eKey, cutSecs), 60);
+    }
+  });
+
+  document.getElementById('summaryBar').innerHTML = `
+    <div class="stat green"><div class="stat-num">${achieved}</div><div class="stat-label">Cuts Made</div></div>
+    <div class="stat"><div class="stat-num">${total - achieved}</div><div class="stat-label">Remaining</div></div>
+    <div class="stat yellow"><div class="stat-num">${close}</div><div class="stat-label">Within 5s</div></div>
+    <div class="stat"><div class="stat-num">${total}</div><div class="stat-label">Events</div></div>
+    <div style="flex:1;text-align:right;font-size:0.72rem;color:#5a8aa8;">Source: GHSA Official Qualifying Times · ghsa.net</div>
+  `;
+}
+
+function bodyHtml(event, eKey, cutSecs) {
+  const tab = cardTabs[event];
+  if (tab === 'times') return timesHtml(event);
+  if (tab === 'chart') return `<div class="chart-wrap"><canvas id="chart_${eKey}"></canvas></div>`;
+  if (tab === 'add')   return addFormHtml(eKey);
+  return '';
+}
+
+function timesHtml(event) {
+  const sorted = getSorted(event);
+  if (!sorted.length) return `<div class="empty-state">No times logged yet.<br>Tap <strong>＋ Add</strong> to enter his first time.</div>`;
+  return `<div class="times-list">${sorted.map((e, i) => `
+    <div class="time-row ${i===0?'best-row':''}">
+      <div style="display:flex;align-items:center;gap:4px;">
+        <span class="time-val ${i===0?'best-val':''}">${i===0?'★ ':''}${e.time}</span>
+        ${i===0 ? '<span class="best-badge">BEST</span>' : ''}
+      </div>
+      <div class="time-meet" title="${escHtml(e.meet||'')}">${e.meet ? escHtml(e.meet) : '<span style="color:#3a5070">—</span>'}</div>
+      <div class="time-date">${e.date || ''}</div>
+      <div class="row-actions">
+        <button class="icon-btn" title="Edit"   onclick="openEdit('${event}',${e.origIdx})">✏️</button>
+        <button class="icon-btn" title="Delete" onclick="deleteTime('${event}',${e.origIdx})">🗑️</button>
+      </div>
+    </div>
+  `).join('')}</div>`;
+}
+
+function addFormHtml(eKey) {
+  return `
+    <div class="add-form">
+      <div class="add-form-grid">
+        <input class="form-input time-font" id="ai_${eKey}" placeholder="Time: 1:55.00" />
+        <input class="form-input"           id="am_${eKey}" placeholder="Meet name" />
+      </div>
+      <input class="form-input" type="date" id="ad_${eKey}" style="margin-bottom:8px;" />
+      <button class="add-btn" onclick="addTime('${eKey}')">＋ Log This Time</button>
+    </div>
+  `;
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─── Chart ────────────────────────────────────────────────────────────────────
+
+function drawChart(event, eKey, cutSecs) {
+  const canvas = document.getElementById('chart_' + eKey);
+  if (!canvas) return;
+
+  const entries = (data[event] || [])
+    .map((e, i) => ({ ...e, origIdx: i }))
+    .sort((a, b) => a.date && b.date ? a.date.localeCompare(b.date) : a.origIdx - b.origIdx);
+
+  if (!entries.length) {
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#3a5070';
+    ctx.font = '12px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText('No times yet — add one first!', canvas.width / 2, 80);
+    return;
+  }
+
+  const labels = entries.map((e, i) => e.meet || e.date || `#${i+1}`);
+  const vals   = entries.map(e => toSecs(e.time));
+  const allV   = [...vals, cutSecs];
+  const minV   = Math.min(...allV) * 0.975;
+  const maxV   = Math.max(...allV) * 1.02;
+
+  if (chartInstances[eKey]) { chartInstances[eKey].destroy(); }
+
+  chartInstances[eKey] = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'His Time',
+          data: vals,
+          borderColor: '#3b82f6',
+          backgroundColor: 'rgba(59,130,246,0.12)',
+          pointBackgroundColor: vals.map(v => v <= cutSecs ? '#22c55e' : '#3b82f6'),
+          pointBorderColor:     vals.map(v => v <= cutSecs ? '#22c55e' : '#3b82f6'),
+          pointRadius: 5, tension: 0.3, fill: true,
+        },
+        {
+          label: 'State Cut',
+          data: Array(labels.length).fill(cutSecs),
+          borderColor: '#f59e0b',
+          borderDash: [5, 4],
+          pointRadius: 0, fill: false, tension: 0,
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#7fa8d4', font: { size: 10 }, boxWidth: 20 } },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const v = ctx.raw;
+              return `${ctx.dataset.label}: ${fromSecs(v)}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#7fa8d4', font: { size: 10 }, maxRotation: 30 }, grid: { color: '#1e3a5f' } },
+        y: {
+          min: minV, max: maxV, reverse: false,
+          ticks: { color: '#7fa8d4', font: { size: 10 }, callback: v => fromSecs(v) },
+          grid: { color: '#1e3a5f' }
+        }
+      }
+    }
+  });
+}
+
+// ─── Actions ─────────────────────────────────────────────────────────────────
+
+function setTab(event, tab) {
+  cardTabs[event] = tab;
+  const eKey = event.replace(/\s/g, '_');
+  const cutSecs = toSecs(CUTS[event]);
+
+  document.getElementById('card_' + eKey).querySelectorAll('.card-tab').forEach((btn, i) => {
+    btn.classList.toggle('active', ['times','chart','add'][i] === tab);
+  });
+  const body = document.getElementById('body_' + eKey);
+  body.innerHTML = bodyHtml(event, eKey, cutSecs);
+  if (tab === 'chart') setTimeout(() => drawChart(event, eKey, cutSecs), 60);
+}
+
+function addTime(eKey) {
+  // Find event name from eKey
+  const event = Object.keys(CUTS).find(e => e.replace(/\s/g,'_') === eKey);
+  if (!event) return;
+
+  const timeVal = document.getElementById('ai_' + eKey)?.value.trim();
+  const meet    = document.getElementById('am_' + eKey)?.value.trim() || '';
+  const date    = document.getElementById('ad_' + eKey)?.value || '';
+
+  if (!timeVal) { alert('Please enter a time.'); return; }
+  if (toSecs(timeVal) === null) { alert('Invalid time. Use format like 1:55.00 or 23.50'); return; }
+
+  if (!data[event]) data[event] = [];
+  data[event].push({ time: timeVal, meet, date });
+  save();
+  cardTabs[event] = 'times';
+  render();
+}
+
+function deleteTime(event, origIdx) {
+  if (!confirm('Delete this time entry?')) return;
+  data[event].splice(origIdx, 1);
+  save();
+  render();
+}
+
+function openEdit(event, origIdx) {
+  editTarget = { event, origIdx };
+  const e = data[event][origIdx];
+  document.getElementById('editTime').value = e.time || '';
+  document.getElementById('editMeet').value = e.meet || '';
+  document.getElementById('editDate').value = e.date || '';
+  document.getElementById('editModal').classList.add('open');
+}
+
+function closeModal() {
+  editTarget = null;
+  document.getElementById('editModal').classList.remove('open');
+}
+
+function saveEdit() {
+  if (!editTarget) return;
+  const { event, origIdx } = editTarget;
+  const timeVal = document.getElementById('editTime').value.trim();
+  if (!timeVal || toSecs(timeVal) === null) { alert('Invalid time format.'); return; }
+  data[event][origIdx] = {
+    time: timeVal,
+    meet: document.getElementById('editMeet').value.trim(),
+    date: document.getElementById('editDate').value
+  };
+  save();
+  closeModal();
+  render();
+}
+
+document.getElementById('editModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('editModal')) closeModal();
+});
+
+render();
+</script>
+</body>
+</html>
